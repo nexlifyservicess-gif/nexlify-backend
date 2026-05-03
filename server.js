@@ -3,6 +3,7 @@ const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
 const path = require('path');
+const rateLimit = require('express-rate-limit');
 const connectDB = require('./config/db');
 
 const contactRoutes = require('./routes/contactRoutes');
@@ -15,7 +16,7 @@ dotenv.config();
 
 const app = express();
 
-// ====================== FIX: Trust Proxy (Required for Railway) ======================
+// ====================== CRITICAL: Trust Proxy for Railway ======================
 app.set('trust proxy', 1);
 
 // ====================== CORS ======================
@@ -32,8 +33,7 @@ app.use(express.urlencoded({ extended: true }));
 // Static files
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 
-// ====================== FIX: Rate Limiter with trust proxy ======================
-const rateLimit = require('express-rate-limit');
+// ====================== RATE LIMITER ======================
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 300,
@@ -51,13 +51,9 @@ app.use('/api/services', serviceRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/requests', requestRoutes);
 
-// Test routes
+// Test route
 app.get('/', (req, res) => {
   res.json({ message: 'Backend is live! 🚀', env: process.env.NODE_ENV });
-});
-
-app.get('/api/debug', (req, res) => {
-  res.json({ success: true, message: 'API is working', time: new Date().toISOString() });
 });
 
 // 404 Handler
