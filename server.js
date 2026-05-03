@@ -4,100 +4,102 @@ const dotenv = require('dotenv');
 const cors = require('cors');
 const path = require('path');
 const connectDB = require('./config/db');
+
 const contactRoutes = require('./routes/contactRoutes');
-const helmet = require('helmet');
-const morgan = require('morgan');
-const rateLimit = require('express-rate-limit');
-const cookieParser = require('cookie-parser');
 const adminRoutes = require('./routes/adminRoutes');
 const serviceRoutes = require('./routes/serviceRoutes');
 const requestRoutes = require('./routes/requestRoutes');
 const projectRoutes = require('./routes/projectRoutes');
-const authMiddleware = require('./middleware/authMiddleware');
 
 dotenv.config();
 
 const app = express();
 
-// ────────────────────────────────────────────────
-//  CORS CONFIG — FIXED FOR PRODUCTION
-// ────────────────────────────────────────────────
+// ====================== CORS CONFIG (Production Ready) ======================
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
   'http://127.0.0.1:5173',
   'http://localhost:5174',
-  'https://nexlify-frontend.vercel.app',  // ← Add your Vercel URL after deployment
+  'https://nexlify-frontend.vercel.app',        // ← Your Vercel frontend
+  // Add more Vercel preview URLs if needed: *.vercel.app
 ];
 
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (mobile apps, curl, server-to-server)
-    if (!origin) return callback(null, true);
-    
-    // Allow all origins in development, specific ones in production
-    if (process.env.NODE_ENV === 'development' || allowedOrigins.includes(origin)) {
+    if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development') {
       callback(null, true);
     } else {
-      console.log('Blocked by CORS:', origin);
+      console.log('🚫 Blocked by CORS:', origin);
       callback(new Error('Not allowed by CORS'));
     }
   },
-  credentials: true,  // ← CRITICAL: allows cookies
+  credentials: true,           // Important for cookies (refresh token)
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   exposedHeaders: ['Content-Length', 'Content-Type'],
 }));
 
-// ❌ REMOVED: app.options('*', cors()); — crashes Express 4+, not needed since cors() middleware above handles all preflight automatically
-
-// Static Files for Uploads
-app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
-
-// Middlewares
+// ====================== MIDDLEWARES ======================
 app.use(helmet());
 app.use(morgan('dev'));
 app.use(cookieParser());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Relaxed Rate Limiter (Fixed)
+// Static files for uploads
+app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
+
+// ====================== RATE LIMITER ======================
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,        // 15 minutes
-  max: 400,                        // Increased limit
-  message: { success: false, message: 'Too many requests, please wait a moment.' },
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: process.env.NODE_ENV === 'production' ? 300 : 500,
+  message: { success: false, message: 'Too many requests, please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => 
-    req.path === '/api/admin/refresh' || 
-    req.path === '/api/admin/me' ||
-    req.method === 'OPTIONS'
 });
+
 app.use(limiter);
 
-app.use(express.json());
-
-// Routes
+// ====================== ROUTES ======================
 app.use('/api/contact', contactRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/services', serviceRoutes);
 app.use('/api/projects', projectRoutes);
-app.use('/api/requests', requestRoutes);   // authMiddleware is already inside the route file
+app.use('/api/requests', requestRoutes);
 
 // Test Route
 app.get('/', (req, res) => {
-  res.json({ message: 'Backend is live! 🚀', env: process.env.NODE_ENV || 'development' });
+  res.json({ 
+    message: 'Backend is live! 🚀', 
+    env: process.env.NODE_ENV || 'development',
+    status: 'ok'
+  });
 });
 
-// 404 & Error Handlers
-app.use((req, res) => res.status(404).json({ success: false, message: 'Route not found' }));
+// Debug route (remove after testing)
+app.get('/api/debug', (req, res) => {
+  res.json({
+    message: "API routes are working!",
+    routesAvailable: ["/api/services", "/api/projects", "/api/admin", "/api/requests", "/api/contact"],
+    timestamp: new Date().toISOString()
+  });
+});
+
+// ====================== 404 & ERROR HANDLING ======================
+app.use((req, res) => {
+  res.status(404).json({ success: false, message: 'Route not found' });
+});
 
 app.use((err, req, res, next) => {
-  console.error('Server error:', err.stack);
+  console.error('Server Error:', err.stack);
   res.status(500).json({ success: false, message: 'Internal server error' });
 });
 
+// ====================== DATABASE & START SERVER ======================
 connectDB();
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT} | Mode: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`✅ Server running on port ${PORT} | Mode: ${process.env.NODE_ENV || 'development'}`);
 });
