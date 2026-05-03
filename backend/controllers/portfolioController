@@ -1,0 +1,86 @@
+// backend/controllers/portfolioController.js
+const Project = require('../models/Project');
+const multer = require('multer');
+const path = require('path');
+
+// Multer setup (but since multer is in routes, not needed here, but included if you want to move)
+
+exports.getAllProjects = async (req, res) => {
+  try {
+    const projects = await Project.find().sort({ createdAt: -1 });
+    res.json(projects);
+  } catch (error) {
+    console.error('Get projects error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+exports.createProject = async (req, res) => {
+  try {
+    const { title, description, category, year, link, imageUrl } = req.body;
+
+    let image = imageUrl || '';
+
+    if (req.file) {
+      image = `/uploads/projects/${req.file.filename}`;
+    }
+
+    const project = new Project({
+      title,
+      description,
+      category,
+      year,
+      link,
+      image,
+    });
+
+    await project.save();
+
+    res.status(201).json({ success: true, project });
+  } catch (err) {
+    console.error('Create project error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+exports.updateProject = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description, category, year, link, imageUrl } = req.body;
+
+    let image = imageUrl || '';
+
+    if (req.file) {
+      image = `/uploads/projects/${req.file.filename}`;
+    }
+
+    const project = await Project.findByIdAndUpdate(id, {
+      title,
+      description,
+      category,
+      year,
+      link,
+      image,
+    }, { new: true });
+
+    if (!project) return res.status(404).json({ message: 'Project not found' });
+
+    res.json(project);
+  } catch (error) {
+    console.error('Update project error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+exports.deleteProject = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const project = await Project.findByIdAndDelete(id);
+    if (!project) return res.status(404).json({ message: 'Project not found' });
+
+    res.json({ message: 'Project deleted' });
+  } catch (error) {
+    console.error('Delete project error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
