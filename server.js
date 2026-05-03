@@ -27,7 +27,7 @@ const allowedOrigins = [
   'http://localhost:3000',
   'http://127.0.0.1:5173',
   'http://localhost:5174',
-  'https://your-vercel-app.vercel.app',  // ← Add your Vercel URL after deployment
+  'https://nexlify-frontend.vercel.app',  // ← Add your Vercel URL after deployment
 ];
 
 app.use(cors({
